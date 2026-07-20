@@ -1,4 +1,5 @@
 from typing import Callable
+import random
 import pandas as pd
 import numpy as np
 import networkx as nx
@@ -36,18 +37,39 @@ def k_medoid_clarans(
         m (int): number of algorithm repeats
 
     Returns:
-        DataFrame: DataFrame with columns 'FromNodeId', 'ToNodeId', and 'ClusterId'
+        tuple[DataFrame, int]: DataFrame with columns 'Medoid' and 'Node' assigning each
+            node to its nearest medoid, and the total clustering cost
 
     """
-    medoids = {}
-    distance_function = None
     G = nx.from_pandas_edgelist(
         df,
         'FromNodeId',
         'ToNodeId',
         create_using=(nx.DiGraph() if is_directed else nx.Graph())
     )
+    nodes = list(G.nodes())
+    best_medoids = None
+    best_cost = float('inf')
 
+    for _ in range(m):
+        current_medoids = set(random.sample(nodes, k))
+        current_cost = _cost(G, current_medoids, nodes)
+        j = 0
+        while j < l:
+            old = random.choice(list(current_medoids))
+            new = random.choice([n for n in nodes if n not in current_medoids])
+            candidate = (current_medoids - {old}) | {new}
+            candidate_cost = _cost(G, candidate, nodes)
+            if candidate_cost < current_cost:
+                current_medoids, current_cost = candidate, candidate_cost
+                j = 0
+            else:
+                j += 1
+        if current_cost < best_cost:
+            best_medoids, best_cost = current_medoids, current_cost
+    clusters = _assign_clusters(G, best_medoids, nodes)
+    _bfs_cache.clear()
+    return clusters, best_cost
 
 _bfs_cache = {}
 def _dist_from(G: nx.Graph, node: int) -> dict:
@@ -59,4 +81,15 @@ def _distance(G: nx.Graph, u: int, v: int):
     PENALTY = 100000
     d = _dist_from(G, u)
     return d.get(v, PENALTY) # penalty if node is unreachable
+
+def _cost(G: nx.Graph, medoids: dict, nodes: dict) -> int:
+    total = 0
+    for n in nodes:
+        total += min(_distance(G, m, n) for m in medoids)
+    return total
+
+def _assign_clusters(G: nx.Graph, medoids: set, nodes: list) -> pd.DataFrame:
+    """Assign each node to its nearest medoid, recording each as a (Medoid, Node) row."""
+    rows = [(min(medoids, key=lambda m: _distance(G, m, n)), n) for n in nodes]
+    return pd.DataFrame(rows, columns=['Medoid', 'Node'])
     
