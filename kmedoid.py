@@ -37,8 +37,7 @@ def k_medoid_clarans(
         m (int): number of algorithm repeats
 
     Returns:
-        tuple[DataFrame, int]: DataFrame with columns 'Medoid' and 'Node' assigning each
-            node to its nearest medoid, and the total clustering cost
+        DataFrame with columns 'Medoid' and 'Node'
 
     """
     G = nx.from_pandas_edgelist(
