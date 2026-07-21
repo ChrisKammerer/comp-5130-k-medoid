@@ -9,10 +9,10 @@ import kmedoid
 
 sns.set_theme(style="whitegrid")
 
-def generate_visualizations():
+def generate_visualizations_pipeline(dataset_path: str, is_directed: bool, dataset_label: str, file_suffix: str):
     print("Loading dataset...")
-    df_directed = pd.read_csv(
-        "datasets/CA-GrQc.txt", 
+    df_raw = pd.read_csv(
+        dataset_path, 
         sep="\t", 
         comment="#", 
         header=None, 
@@ -20,8 +20,8 @@ def generate_visualizations():
     )
 
     # Pre-process graph to largest connected component
-    G_full = pam.build_graph(df_directed, is_directed=True)
-    G_clean = pam.restrict_to_largest_component(G_full, is_directed=True)
+    G_full = pam.build_graph(df_raw, is_directed=is_directed)
+    G_clean = pam.restrict_to_largest_component(G_full, is_directed=is_directed)
     
     # select edges for cluster processing
     df_clean = nx.to_pandas_edgelist(G_clean, source='FromNodeId', target='ToNodeId')
@@ -30,7 +30,7 @@ def generate_visualizations():
     t0_pam = time.perf_counter()
     clusters_pam, cost_pam, history_pam = pam.k_medoid_pam(
         df_clean, 
-        is_directed=True, 
+        is_directed=is_directed, 
         k=5, 
         random_state=0
     )
@@ -40,7 +40,7 @@ def generate_visualizations():
     t0_clarans = time.perf_counter()
     clusters_clarans, cost_clarans = kmedoid.k_medoid_clarans(
         df_clean, 
-        is_directed=True, 
+        is_directed=is_directed, 
         k=5, 
         l=20, 
         m=2
@@ -53,11 +53,11 @@ def generate_visualizations():
     # PAM Cost Convergence per Iteration graph
     plt.figure(figsize=(8, 4.5))
     plt.plot(range(len(history_pam)), history_pam, marker='o', color='#2b5c8f', linewidth=2)
-    plt.title("PAM Iterative Cost Reduction (CA-GrQc, k=5)", fontsize=12, fontweight='bold')
+    plt.title(f"PAM Iterative Cost Reduction ({dataset_label}, k=5)", fontsize=12, fontweight='bold')
     plt.xlabel("Swap Iteration", fontsize=10)
     plt.ylabel("Total Graph Distance Cost", fontsize=10)
     plt.tight_layout()
-    plt.savefig("pam_convergence.png", dpi=300)
+    plt.savefig(f"pam_convergence_{file_suffix}.png", dpi=300)
     plt.close()
 
     # Cluster Size Distribution Comparison
@@ -82,12 +82,12 @@ def generate_visualizations():
         palette='Set2', 
         dodge=False
     )
-    plt.title("Cluster Size Distribution: PAM vs. CLARANS (k=5)", fontsize=12, fontweight='bold')
+    plt.title(f"Cluster Size Distribution: PAM vs. CLARANS ({dataset_label})", fontsize=12, fontweight='bold')
     plt.xlabel("Medoid ID", fontsize=10)
     plt.ylabel("Assigned Node Count", fontsize=10)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
-    plt.savefig("cluster_distribution.png", dpi=300)
+    plt.savefig(f"cluster_distribution_{file_suffix}.png", dpi=300)
     plt.close()
 
     # Comparison Table pam_vs_clarans_tradeoff.png
@@ -123,13 +123,13 @@ def generate_visualizations():
         else:
             cell.set_facecolor('#f7f9fb' if row % 2 == 0 else '#ffffff')
 
-    plt.title("Algorithm Performance Summary: PAM vs. CLARANS", fontsize=12, fontweight='bold', pad=20)
+    plt.title(f"Algorithm Performance Summary: PAM vs. CLARANS ({dataset_label})", fontsize=12, fontweight='bold', pad=20)
     plt.tight_layout()
-    plt.savefig("pam_vs_clarans_tradeoff.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"pam_vs_clarans_tradeoff_{file_suffix}.png", dpi=300, bbox_inches='tight')
     plt.close()
 
     # network clusters graph
-    print("network_clusters.png being created")
+    print(f"network_clusters_{file_suffix}.png being created")
     medoids = list(clusters_pam['Medoid'].unique())
     
     nodes_to_draw = set(medoids)
@@ -176,15 +176,37 @@ def generate_visualizations():
         linewidths=1.2,
     )
     
-    plt.title("PAM Medoids & Local Neighborhoods (CA-GrQc Subsample)", fontsize=12, fontweight='bold')
+    plt.title(f"PAM Medoids & Local Neighborhoods ({dataset_label} Subsample)", fontsize=12, fontweight='bold')
     plt.legend(loc='upper right', bbox_to_anchor=(1.25, 1), title="Clusters & Medoids", frameon=True)
     plt.axis('off')
     plt.tight_layout()
-    plt.savefig("network_clusters.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"network_clusters_{file_suffix}.png", dpi=300, bbox_inches='tight')
     plt.close()
 
+    print(f"Graphs generated for {dataset_label}.")
 
-    print("Graphs generated.")
+def generate_directed_visualizations():
+    # CA-GrQc
+    generate_visualizations_pipeline(
+        dataset_path="datasets/CA-GrQc.txt",
+        is_directed=True,
+        dataset_label="CA-GrQc Directed",
+        file_suffix="directed"
+    )
+
+def generate_undirected_visualizations():
+    # undirected graph w/ com-dblp
+    generate_visualizations_pipeline(
+        dataset_path="datasets/com-dblp.ungraph.txt",
+        is_directed=False,
+        dataset_label="com-DBLP Undirected",
+        file_suffix="undirected"
+    )
 
 if __name__ == "__main__":
-    generate_visualizations()
+    # directed graph visualization run
+    generate_directed_visualizations()
+    
+    # undirected graph visualization run, uncomment when ready.
+    
+    # generate_undirected_visualizations()
